@@ -2,9 +2,12 @@ import asyncio
 import websockets
 import struct
 from collections import defaultdict
+from qtstyles import StylePicker
 from PySide6.QtWidgets import QApplication, QWidget, QBoxLayout,\
-QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QScrollArea, QLabel, QStackedWidget
-from PySide6.QtCore import Signal, QObject, Slot, QTimer
+QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QScrollArea, \
+QLabel, QStackedWidget, QGridLayout, QStyleFactory
+from PySide6.QtGui import QFont
+from PySide6.QtCore import Signal, QObject, Slot, QTimer, Qt
 from PySide6 import QtAsyncio
 
 class Backend(QObject):
@@ -116,9 +119,13 @@ class UserList(QWidget):
                     break
             if new_user:
                 push_button = QPushButton(user, self)
+                push_button.setCheckable(True)
                 self.buttons.append(push_button)
                 self.layout.insertWidget(len(self.buttons) - 1, push_button)
                 push_button.clicked.connect(self.user_selected)
+                if(len(self.buttons) == 1):
+                    # default just select the lone user
+                    push_button.clicked.emit()
             self.rec_id_input.clear()  # Clear the input field after adding
 
     @Slot()
@@ -131,12 +138,19 @@ class UserList(QWidget):
                     break
             if new_user:
                 push_button = QPushButton(str(user), self)
+                push_button.setCheckable(True)
                 self.buttons.append(push_button)
                 self.layout.insertWidget(len(self.buttons) - 1, push_button)
                 push_button.clicked.connect(self.user_selected)
+                if(len(self.buttons) == 1):
+                    # default just select the lone user
+                    push_button.clicked.emit()
 
     @Slot()
     def user_selected(self):
+        for button in self.buttons:
+            button.setChecked(False)
+        self.sender().setChecked(True)
         username = self.sender().text()
         self.select_chat.emit(username)
 
@@ -159,16 +173,19 @@ class ChatWindow(QWidget):
         self.layout = QBoxLayout(QBoxLayout.BottomToTop, self.scroll_area_widget_contents)
         self.layout.insertStretch(0,1)
         # Add scroll area to main layout
-        self.contact = QLabel(f"User selected: [{self.current_user}]", self)
+        self.contact = QLabel(f"Welcome!", self)
+        self.contact.setAlignment(Qt.AlignHCenter)
         main_layout.addWidget(self.contact)
         main_layout.addWidget(self.scroll_area)
 
         pass
 
+    def set_title(self, username):
+        self.contact.setText(f"Welcome {username}!")
+        self.contact.setAlignment(Qt.AlignHCenter)
     @Slot()
     def change_current_user(self, username):
         self.current_user = username
-        self.contact.setText(f"User selected: [{self.current_user}]")
         for message in self.messages:
             self.layout.removeWidget(message)
             message.deleteLater()
@@ -182,9 +199,16 @@ class ChatWindow(QWidget):
             return
         for i in range(new_from_index, len(self.backend.chat_logs[int(self.current_user)])):
             label = QLabel(self.backend.chat_logs[int(self.current_user)][i], self)
+            msg = self.backend.chat_logs[int(self.current_user)][i]
+            curr_user = ""
+            for j in range(1, 4):
+                if(msg[j] == ']'):
+                    break
+                curr_user += msg[j]
+            if(curr_user != self.current_user):
+                label.setAlignment(Qt.AlignRight)
             self.layout.insertWidget(0, label)
             self.messages.append(label)
-        print(new_from_index)
 
 
 class Chat(QWidget):
@@ -210,15 +234,12 @@ class Chat(QWidget):
         asyncio.create_task(self.backend.send_message(username, payload))
         self.type_window.clear()
 
-def ChatPage(QWidget):
-    connect_to_server_signal = Signal(str, str)
-    def __init__(self, backend=None):
-        super().__init__()
+class ChatPage(QWidget):
+    def __init__(self, parent=None, backend=None):
+        super().__init__(parent)
+        pass
         self.backend = backend
-        self.backend.connection_status.connect(self.on_connection_status)
         self.user_list = UserList(self, self.backend)
-        self.user_list.add_button.setEnabled(False)
-        self.user_list.rec_id_input.setEnabled(False)
         self.chat_hist = Chat(self, self.backend)
         self.layout = QBoxLayout(QBoxLayout.LeftToRight, self)
         self.layout.addWidget(self.user_list, stretch=1)
@@ -231,60 +252,70 @@ def ChatPage(QWidget):
         # when user is done editing, call backed
         self.user_list.select_chat.connect(self.chat_hist.chat_window.change_current_user)
 
-    @Slot()
-    def request_connect_to_server(self):
-        client_id = int(self.client_id_input.text())
-        asyncio.create_task(self.backend.connect_to_serverrr("ws://localhost:12345", client_id))
-
-    @Slot(bool)
-    def on_connection_status(self, status):
-        if status:
-            self.connect_button.setEnabled(False)
-            self.client_id_input.setEnabled(False)
-            self.user_list.add_button.setEnabled(True)
-            self.user_list.rec_id_input.setEnabled(True)
-        else:
-            self.connect_button.setEnabled(True)
-            self.client_id_input.setEnabled(True)
-            self.user_list.add_button.setEnabled(False)
-            self.user_list.rec_id_input.setEnabled(False)
-
-
-class MainWindow(QWidget):
-    connect_to_server_signal = Signal(str, str)
-    def __init__(self, backend=None):
+class LoginPage(QWidget):
+    login_successful = Signal()
+    def __init__(self,parent=None,backend=None):
         super().__init__()
-        self.chat_page = ChatPage(backend)
-        self.login_page = LoginPage(backend)
-        self.addWidget(self.login_page)
-        self.addWidget(self.chat_page)
-        self.setCurrentWidget(self.chat_page)
+        self.backend=backend
         self.client_id_input = QLineEdit(self)
         self.connect_button = QPushButton("Connect", self)
-        self.layout.addWidget(self.client_id_input)
-        self.layout.addWidget(self.connect_button)
+        self.layout = QGridLayout(self)
+        self.layout.addWidget(self.client_id_input, 1,1)
+        self.layout.addWidget(self.connect_button, 2, 1)
+        self.layout.setColumnStretch(0, 1)
+        self.layout.setColumnStretch(2, 1)
+        self.layout.setRowStretch(0,1)
+        self.layout.setRowStretch(3,1)
         self.connect_button.clicked.connect(self.request_connect_to_server)
-
+        self.backend.connection_status.connect(self.on_connection_status)
     @Slot()
     def request_connect_to_server(self):
-        client_id = int(self.client_id_input.text())
-        asyncio.create_task(self.backend.connect_to_serverrr("ws://localhost:12345", client_id))
+        self.connect_button.setEnabled(False)
+        self.client_id_input.setEnabled(False)
+        self.client_id = int(self.client_id_input.text())
+        asyncio.create_task(self.backend.connect_to_serverrr("ws://localhost:12345", self.client_id))
 
     @Slot(bool)
     def on_connection_status(self, status):
-        if status:
-            self.connect_button.setEnabled(False)
-            self.client_id_input.setEnabled(False)
-            self.user_list.add_button.setEnabled(True)
-            self.user_list.rec_id_input.setEnabled(True)
-        else:
+        if not status:
             self.connect_button.setEnabled(True)
             self.client_id_input.setEnabled(True)
-            self.user_list.add_button.setEnabled(False)
-            self.user_list.rec_id_input.setEnabled(False)
+        else:
+            self.login_successful.emit()
+
+class MainWindow(QWidget):
+    def __init__(self, backend=None):
+        super().__init__()
+        self.stack = QStackedWidget(self)
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.stack)
+        self.chat_page = self.stack.addWidget(ChatPage(self, backend))
+        self.login_page = self.stack.addWidget(LoginPage(self,backend))
+        self.stack.setCurrentIndex(self.login_page)
+        self.stack.widget(self.login_page).login_successful.connect(self.go_to_main_page)
+
+    @Slot()
+    def go_to_main_page(self):
+        id = self.sender().client_id
+        self.stack.widget(self.chat_page).chat_hist.chat_window.set_title(id)
+        self.stack.setCurrentIndex(self.chat_page)
+
 
 def main():
     app = QApplication([])
+    # app.setStyleSheet("* { background-color: black;"
+    #                 "color : white}"
+    #                 "QLineEdit { selection-color : blue; border-width: 10px}"
+    #                 "QPushButton{ background-color: red; border-style: outset; border-width: 2px; border-radius: 10px;"
+    #                 "border-color: beige;"
+    #                 "font: bold 14px;"
+    #                 "min-width: 10em;"
+    #                 "padding: 6px;}"
+    #                 "border: 10px solid white;"
+    #                 "margin: 1ex }")
+    # print(StylePicker().available_styles)
+    app.setStyleSheet(StylePicker('qdark').get_sheet())
+    app.setFont(QFont("Hack", 14, QFont.Bold))
     client = Backend()
     window = MainWindow(client)
     window.show()
