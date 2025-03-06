@@ -206,7 +206,6 @@ class Chat(QWidget):
         self.type_window.clear()
 
 def ChatPage(QWidget):
-    connect_to_server_signal = Signal(str, str)
     def __init__(self, backend=None):
         super().__init__()
         self.backend = backend
@@ -244,6 +243,11 @@ def ChatPage(QWidget):
             self.user_list.add_button.setEnabled(False)
             self.user_list.rec_id_input.setEnabled(False)
 
+class LoginPage(QWidget):
+    connect_to_server_signal = Signal(str, str)
+    def __init__(self, backend=None):
+        super().__init__()
+
 
 class MainWindow(QWidget):
     connect_to_server_signal = Signal(str, str)
@@ -254,6 +258,7 @@ class MainWindow(QWidget):
         self.addWidget(self.login_page)
         self.addWidget(self.chat_page)
         self.setCurrentWidget(self.chat_page)
+        
         self.client_id_input = QLineEdit(self)
         self.connect_button = QPushButton("Connect", self)
         self.layout.addWidget(self.client_id_input)
