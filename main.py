@@ -36,6 +36,9 @@ class Backend(QObject):
             self.connection_status.emit(False)
 
     async def send_message(self, receiver_id, message):
+        associate_packet = struct.pack('!BBB', 0, 0, self.client_id)
+        await self.websocket.send(associate_packet)
+        response = await self.websocket.recv()
         payload = message.encode('ascii')
         payload_length = len(payload)
         if payload_length > 255:
@@ -142,7 +145,7 @@ class ChatWindow(QWidget):
         super().__init__(parent)
         self.backend = backend
         self.messages = []
-        self.current_user = "0"
+        self.current_user = ""
         # Main layout
         main_layout = QVBoxLayout(self)
 
@@ -200,6 +203,8 @@ class Chat(QWidget):
 
     @Slot()
     def handle_message(self):
+        if self.chat_window.current_user == "":
+            return
         payload = self.type_window.text()
         username = self.chat_window.current_user
         asyncio.create_task(self.backend.send_message(username, payload))
