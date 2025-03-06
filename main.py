@@ -140,6 +140,8 @@ class ChatWindow(QWidget):
     def __init__(self, parent=None, backend=None):
         super().__init__(parent)
         self.backend = backend
+        self.messages = []
+        self.current_user = "0"
         # Main layout
         main_layout = QVBoxLayout(self)
 
@@ -153,15 +155,16 @@ class ChatWindow(QWidget):
         self.layout = QBoxLayout(QBoxLayout.BottomToTop, self.scroll_area_widget_contents)
         self.layout.insertStretch(0,1)
         # Add scroll area to main layout
+        self.contact = QLabel(f"User selected: [{self.current_user}]", self)
+        main_layout.addWidget(self.contact)
         main_layout.addWidget(self.scroll_area)
 
-        self.messages = []
-        self.current_user = "0"
         pass
 
     @Slot()
     def change_current_user(self, username):
         self.current_user = username
+        self.contact.setText(f"User selected: [{self.current_user}]")
         for message in self.messages:
             self.layout.removeWidget(message)
             message.deleteLater()
