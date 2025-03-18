@@ -9,10 +9,10 @@ import random
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 12345
 BUFFER_SIZE = 1024
-QUEUE_SIZE = 100  #B, Max buffer size
-PACKET_SERVICE_INTERVAL = 0.001  #1/C, Inverse of the link capacity, packet processing rate (FIFO)
+QUEUE_SIZE = 1  #B, Max buffer size
+PACKET_SERVICE_INTERVAL = 0.1  #1/C, Inverse of the link capacity, packet processing rate (FIFO)
 DROP_PROBABILITY = 0.0  #PER, Probability of packet drop before entering the queue
-RTT = 0.1  #Round-trip time (RTT)
+RTT = 1  #Round-trip time (RTT)
 
 # Create UDP socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -59,6 +59,7 @@ def serve_packets():
     global base
     while True:
         seq_num, client_addr = processing_queue.get()
+        print("time of getting ", time.time())
         with lock:
             if seq_num == base+1:
                 received_packets.add(seq_num)
@@ -92,5 +93,3 @@ while True:
 
     # Delay packet independently
     threading.Thread(target=delay_packet, args=(seq_num, client_addr, recv_time), daemon=True).start()
-
-
