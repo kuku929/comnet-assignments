@@ -4,7 +4,7 @@ import time
 
 # Client configuration
 CLIENT_SCRIPT = "client-wfq4a.py"
-PORTS = [5001, 5002, 5003]
+PORTS = [(5001, 10), (5002, 20), (5003, 40)]
 
 def run_clients():
     processes = []
@@ -12,7 +12,8 @@ def run_clients():
         cmd = [
             sys.executable,
             CLIENT_SCRIPT,
-            str(port)
+            str(port[0]),
+            str(port[1])
         ]
         processes.append(subprocess.Popen(cmd))
     

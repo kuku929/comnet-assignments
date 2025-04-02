@@ -12,7 +12,8 @@ PACKET_SIZE = 1024  # Size of each packet
 SEND_INTERVAL = 0.1  # Interval between sending packets (in seconds)
 
 class Client:
-    def __init__(self, client_port):
+    def __init__(self, client_port, speed):
+        self.send_interval = 1/speed
         self.client_port = client_port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("0.0.0.0", self.client_port))
@@ -29,7 +30,7 @@ class Client:
             with self.lock:
                 self.total_packets_sent += 1
             # print(f"Sent: {packet_data.decode()}")
-            time.sleep(SEND_INTERVAL)
+            time.sleep(self.send_interval)
 
     def receive_packets(self):
         while True:
@@ -72,7 +73,8 @@ class Client:
 
 if __name__ == "__main__":
     client_port = int(sys.argv[1])
-    client = Client(client_port)
+    speed = int(sys.argv[2])
+    client = Client(client_port, speed)
     client.start()
 
 

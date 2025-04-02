@@ -8,8 +8,8 @@ SERVER_IP = "127.0.0.1"
 SERVER_PORT = 4000
 CAPACITY = 10  # packets per second
 PACKET_SIZE = 1024
-BUFFER_SIZE = 10 # Max queue size
-FLOW_WEIGHTS = {5001: 1, 5002: 1, 5003: 1}  # weights for each flow
+BUFFER_SIZE = 1000 # Max queue size
+FLOW_WEIGHTS = {5001: 8, 5002: 1, 5003: 1}  # weights for each flow
 SIZE_CNT = [0,0,0]
 
 class WFQServer:
@@ -17,16 +17,15 @@ class WFQServer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((SERVER_IP, SERVER_PORT))
         self.virtual_time = 0  # System virtual time
-        self.last_vft = {port: [0] for port in FLOW_WEIGHTS}  # Last VFT for each flow
+        self.last_vft = {port: 0 for port in FLOW_WEIGHTS}  # Last VFT for each flow
         self.lock = threading.Lock()
         self.buffer = [] # [(vft, (data, flow_num))]
-        heapq.heapify(self.buffer)
 
     def compute_vft(self, flow, arrival_time):
         weight = FLOW_WEIGHTS[flow]
-        last_vft = self.last_vft[flow][-1]
+        last_vft = self.last_vft[flow]
         vft = max(arrival_time, last_vft) + 1 / (CAPACITY * weight)
-        self.last_vft[flow].append(vft)
+        self.last_vft[flow] = vft
         return vft
     def find_flow_ind(self,flow):
         flow_ind = 0
@@ -41,20 +40,16 @@ class WFQServer:
         with self.lock:
             flow_ind = self.find_flow_ind(flow)
             vft = self.compute_vft(flow, self.virtual_time)
-            # Drop the packet with the highest VFT
-            # since we are removing the last element
-            # the tree does not change so you don't
-            # need to heapify.
-            heapq.heappush(self.buffer, (vft, (packet, flow)))
-            SIZE_CNT[flow_ind]+=1
-            print(f"received on {flow_ind} at {self.virtual_time}, vft = {vft}", flush=True)
-            # heapify is O(n), we don't want that
-            # heapq.heapify(self.buffer)
-            if len(self.buffer) > BUFFER_SIZE:
-                index_max = max(range(len(self.buffer)), key=self.buffer.__getitem__)
-                vft, (packet, flow) = self.buffer.pop(index_max)
-                self.last_vft[flow].pop(-1)
-                heapq.heapify(self.buffer)
+            if SIZE_CNT[flow_ind] < BUFFER_SIZE:
+                # Drop the packet with the highest VFT
+                # since we are removing the last element
+                # the tree does not change so you don't
+                # need to heapify.
+                heapq.heappush(self.buffer, (vft, (packet, flow)))
+                SIZE_CNT[flow_ind]+=1
+                print(f"received on {flow_ind} at {self.virtual_time}, vft = {vft}", flush=True)
+                # heapify is O(n), we don't want that
+                # heapq.heapify(self.buffer)
             
 
     def serve_packets(self):
@@ -70,7 +65,7 @@ class WFQServer:
                 self.virtual_time = vft
                 client_addr = ("127.0.0.1", flow)
                 self.sock.sendto(packet, client_addr)
-                # print(flow_ind, " ", vft)
+                print(flow_ind, " ", vft)
             else:
                 self.lock.release()
             
