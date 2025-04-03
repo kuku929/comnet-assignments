@@ -10,7 +10,6 @@ CAPACITY = 10  # packets per second
 PACKET_SIZE = 1024
 BUFFER_SIZE = 10 # Max queue size
 FLOW_WEIGHTS = {5001: 1, 5002: 1, 5003: 1}  # weights for each flow
-SIZE_CNT = [0,0,0]
 
 class WFQServer:
     def __init__(self):
@@ -19,66 +18,51 @@ class WFQServer:
         self.virtual_time = 0  # System virtual time
         self.last_vft = {port: [0] for port in FLOW_WEIGHTS}  # Last VFT for each flow
         self.lock = threading.Lock()
-        self.buffer = [] # [(vft, (data, flow_num))]
-        heapq.heapify(self.buffer)
+        self.buffer = [] # Acts as a heap, contains: [(vft, (data, flow_num))]
 
     def compute_vft(self, flow, arrival_time):
+        # Function to compute vft of packet that arrived
         weight = FLOW_WEIGHTS[flow]
         last_vft = self.last_vft[flow][-1]
         vft = max(arrival_time, last_vft) + 1 / (CAPACITY * weight)
         self.last_vft[flow].append(vft)
         return vft
-    def find_flow_ind(self,flow):
-        flow_ind = 0
-        for key in FLOW_WEIGHTS.keys():
-            if key == flow:
-                break
-            else:
-                flow_ind+=1
-        return flow_ind
     
     def enqueue_packet(self, packet, flow):
+        # Function to add packet to queue and handle dropping
         with self.lock:
-            flow_ind = self.find_flow_ind(flow)
             vft = self.compute_vft(flow, self.virtual_time)
-            # Drop the packet with the highest VFT
-            # since we are removing the last element
-            # the tree does not change so you don't
-            # need to heapify.
+            # Insert in order of vft
             heapq.heappush(self.buffer, (vft, (packet, flow)))
-            SIZE_CNT[flow_ind]+=1
-            print(f"received on {flow_ind} at {self.virtual_time}, vft = {vft}", flush=True)
-            # heapify is O(n), we don't want that
-            # heapq.heapify(self.buffer)
             if len(self.buffer) > BUFFER_SIZE:
+                # Treat the 'heap' as list
+                # Find index of max vft packet
+                # Drop that packet
+                # Re-heapify the list
                 index_max = max(range(len(self.buffer)), key=self.buffer.__getitem__)
                 vft, (packet, flow) = self.buffer.pop(index_max)
                 self.last_vft[flow].pop(-1)
                 heapq.heapify(self.buffer)
             
-
     def serve_packets(self):
+        # Function to serve packets
         while True:
             self.lock.acquire()
             if self.buffer:
+                # Pop from top of heap
                 vft, (packet, flow) = heapq.heappop(self.buffer)
                 self.lock.release()
                 time.sleep(1/CAPACITY)
-                flow_ind = self.find_flow_ind(flow)
-                SIZE_CNT[flow_ind]-=1
                 # print(self.buffer)
                 self.virtual_time = vft
                 client_addr = ("127.0.0.1", flow)
                 self.sock.sendto(packet, client_addr)
-                # print(flow_ind, " ", vft)
             else:
                 self.lock.release()
             
 
     def start(self):
-        # didn't daemon make it like very slow??
-        # Yeah but it isn't happening here
-        # If I make it false program doesn't terminate properly
+        # Server enqueued packets on another thread
         threading.Thread(target=self.serve_packets, daemon=True).start()
         while True:
             data, addr = self.sock.recvfrom(PACKET_SIZE)
