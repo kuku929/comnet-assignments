@@ -95,43 +95,126 @@ def construct_data():
     tab = pd.DataFrame(data=res, columns=['n','L','total_attempts', 'total_successes', 'total_collisions', 'collision_rate', 'success_rate', 'throughput', 'per_node']) 
     tab.to_csv("sim.csv")
     return tab
+
+def vs_n_plots(tab: pd.DataFrame):
+    # Create a single figure for all throughput plots
+    plt.figure(figsize=(10, 6))
+
+    # Plot throughput for different L values
+    for L in [1, 5, 10, 15, 20, 40, 60, 80, 100]:
+        subset = tab.loc[(slice(None), L), :].reset_index()
+        sns.lineplot(data=subset, x='n', y='throughput', label=f'L={L}' if L in [1, 5, 10, 15, 20, 40, 60, 80, 100] else None)
+
+    # Plot average throughput across all L values
+    avg_throughput = tab.groupby('n')['throughput'].mean().reset_index()
+    sns.lineplot(data=avg_throughput, x='n', y='throughput', label='Average for L from 1 to 100', linewidth=3, color='black')
+
+    plt.title('Throughput vs Number of Nodes')
+    plt.xlabel('Number of Nodes (n)')
+    plt.ylabel('Throughput')
+    plt.legend(title='L values', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+
+    # Create a single figure for all collision rate plots
+    plt.figure(figsize=(10, 6))
+
+    # Plot collision rate for different L values
+    for L in [1, 20, 40, 60, 80, 100]:
+        subset = tab.loc[(slice(None), L), :].reset_index()
+        sns.lineplot(data=subset, x='n', y='collision_rate', label=f'L={L}' if L in [1, 20, 40, 60, 80, 100] else None)
+
+    # Plot average collision rate across all L values
+    avg_collision = tab.groupby('n')['collision_rate'].mean().reset_index()
+    sns.lineplot(data=avg_collision, x='n', y='collision_rate', label='Average for L from 1 to 100', linewidth=3, color='black')
+
+    plt.title('Collision Rate vs Number of Nodes')
+    plt.xlabel('Number of Nodes (n)')
+    plt.ylabel('Collision Rate')
+    plt.legend(title='L values', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+
+    plt.show()
+
+def vs_L_plots(tab: pd.DataFrame):
+    # Create a single figure for all throughput plots
+    plt.figure(figsize=(10, 6))
+
+    # Plot throughput for different n values
+    for n in range(1,11):
+        subset = tab.loc[(n, slice(None)), :].reset_index()
+        sns.lineplot(data=subset, x='L', y='throughput', label=f'n={n}')
+
+    # Plot average throughput across all n values
+    avg_throughput = tab.groupby('L')['throughput'].mean().reset_index()
+    sns.lineplot(data=avg_throughput, x='L', y='throughput', label='Average for n from 1 to 10', linewidth=3, color='black')
+
+    plt.title('Throughput vs Transmission length')
+    plt.xlabel('Transmission length L')
+    plt.ylabel('Throughput')
+    plt.legend(title='n values', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+
+    # Create a single figure for all collision rate plots
+    plt.figure(figsize=(10, 6))
+
+    # Plot collision rate for different n values
+    for n in range(1,11):
+        subset = tab.loc[(n, slice(None)), :].reset_index()
+        sns.lineplot(data=subset, x='L', y='collision_rate', label=f'n={n}')
+
+    # Plot average collision rate across all n values
+    avg_collision = tab.groupby('L')['collision_rate'].mean().reset_index()
+    sns.lineplot(data=avg_collision, x='L', y='collision_rate', label='Average for n from 1 to 10', linewidth=3, color='black')
+
+    plt.title('Collision Rate vs Transmission length')
+    plt.xlabel('Transmission length L')
+    plt.ylabel('Collision Rate')
+    plt.legend(title='n values', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+
+    plt.show()
+
+# Plot the plots
 try:
     tab = pd.read_csv("sim.csv")
 except:
     tab = construct_data()
 finally:
     tab = tab.set_index(['n', 'L'])
-    # let's plot the probability of success
+    vs_n_plots(tab)
+    vs_L_plots(tab)
+
+    # # let's plot the probability of success
     # wide_tab = tab.pivot(index="L", columns="n", values="success_rate")
-    # plots success rate with L for various n
+    # # plots success rate with L for various n
     # sns.relplot(data=tab, x="L", y="success_rate", hue="n", kind="line")
-    # plots spread of success rate with n
-    # shows very less deviation
-    # sns.relplot(data=tab,x="n", y="success_rate", kind="line")
-    n = 3
-    one_n = tab.loc[n]
-    dataframes = []
-    for L in range(1,101):
-        res = {'L':[], 'name': [], 'tx': [], 'success': [], 'collisions': []} 
-        ls = ast.literal_eval(one_n.loc[L]['per_node'])
-        for node, row in enumerate(ls):
-            for key in row.keys():
-                res[key].append(row[key])
-            res['name'].append('node_'+str(node))
-            res['L'].append(L)
-        dataframes.append(pd.DataFrame(data=res))
-    # this is the dataset for each node 
-    # for a range of L
-    acc = pd.concat(dataframes)
-    one_n = pd.merge(one_n, acc, on='L', how='left')
-    one_n['node_success_rate'] = one_n['success']/one_n['tx']
-    # plots the different success rate for 10 nodes
-    # as L is increased. As L increases the variation
-    # of successes increases but the mean remains the same
-    sns.boxplot(data=one_n, y="node_success_rate", x="L") 
-    one_node_data = one_n.loc[one_n['name'] == 'node_0']
-    sns.relplot(data=one_node_data,x="L", y="node_success_rate", kind="line", hue="name")
-    # show how the success rate of a node changes
-    # as more nodes are added to the system
-    plt.xticks(rotation=90)
-    plt.show()
+    # # plots spread of success rate with n
+    # # shows very less deviation
+    # sns.relplot(data=tab,x="n", y="success_rate", hue="L", kind="line")
+    # n = 3
+    # one_n = tab.loc[n]
+    # dataframes = []
+    # for L in range(1,101):
+    #     res = {'L':[], 'name': [], 'tx': [], 'success': [], 'collisions': []} 
+    #     ls = ast.literal_eval(one_n.loc[L]['per_node'])
+    #     for node, row in enumerate(ls):
+    #         for key in row.keys():
+    #             res[key].append(row[key])
+    #         res['name'].append('node_'+str(node))
+    #         res['L'].append(L)
+    #     dataframes.append(pd.DataFrame(data=res))
+    # # this is the dataset for each node 
+    # # for a range of L
+    # acc = pd.concat(dataframes)
+    # one_n = pd.merge(one_n, acc, on='L', how='left')
+    # one_n['node_success_rate'] = one_n['success']/one_n['tx']
+    # # plots the different success rate for 10 nodes
+    # # as L is increased. As L increases the variation
+    # # of successes increases but the mean remains the same
+    # sns.boxplot(data=one_n, y="node_success_rate", x="L") 
+    # one_node_data = one_n.loc[one_n['name'] == 'node_0']
+    # sns.relplot(data=one_node_data,x="L", y="node_success_rate", kind="line", hue="name")
+    # # show how the success rate of a node changes
+    # # as more nodes are added to the system
+    # plt.xticks(rotation=90)
+    # plt.show()
